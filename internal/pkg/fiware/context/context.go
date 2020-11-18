@@ -9,7 +9,8 @@ import (
 )
 
 type contextSource struct {
-	roads []fiware.Road
+	roads        []fiware.Road
+	roadSegments []fiware.RoadSegment
 }
 
 //CreateSource instantiates and returns a Fiware ContextSource that wraps the provided db interface
@@ -19,11 +20,26 @@ func CreateSource() ngsi.ContextSource {
 
 func (cs *contextSource) CreateEntity(typeName, entityID string, req ngsi.Request) error {
 
-	road := &fiware.Road{}
-	err := req.DecodeBodyInto(road)
+	var err error
 
-	if err == nil {
-		cs.roads = append(cs.roads, *road)
+	if typeName == "Road" {
+		road := &fiware.Road{}
+
+		err := req.DecodeBodyInto(road)
+
+		if err == nil {
+			cs.roads = append(cs.roads, *road)
+		}
+	}
+
+	if typeName == "RoadSegment" {
+		roadSegment := &fiware.RoadSegment{}
+
+		err := req.DecodeBodyInto(roadSegment)
+
+		if err == nil {
+			cs.roadSegments = append(cs.roadSegments, *roadSegment)
+		}
 	}
 
 	return err
@@ -33,10 +49,25 @@ func (cs *contextSource) GetEntities(query ngsi.Query, callback ngsi.QueryEntiti
 
 	var err error
 
-	for _, serviceRequest := range cs.roads {
-		err = callback(serviceRequest)
-		if err != nil {
-			break
+	if query == nil {
+		return errors.New("GetEntities: query may not be nil")
+	}
+
+	for _, typeName := range query.EntityTypes() {
+		if typeName == "Road" {
+			for _, road := range cs.roads {
+				err = callback(road)
+				if err != nil {
+					break
+				}
+			}
+		} else if typeName == "RoadSegment" {
+			for _, roadSegment := range cs.roadSegments {
+				err = callback(roadSegment)
+				if err != nil {
+					break
+				}
+			}
 		}
 	}
 
@@ -48,11 +79,12 @@ func (cs contextSource) ProvidesAttribute(attributeName string) bool {
 }
 
 func (cs contextSource) ProvidesEntitiesWithMatchingID(entityID string) bool {
-	return strings.HasPrefix(entityID, "urn:ngsi-ld:Road:")
+	return strings.HasPrefix(entityID, "urn:ngsi-ld:Road:") ||
+		strings.HasPrefix(entityID, "urn:ngsi-ld:RoadSegment:")
 }
 
 func (cs contextSource) ProvidesType(typeName string) bool {
-	return typeName == "Road"
+	return typeName == "Road" || typeName == "RoadSegment"
 }
 
 func (cs contextSource) UpdateEntityAttributes(entityID string, req ngsi.Request) error {

@@ -13,7 +13,6 @@ require (
 	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
 	golang.org/x/text v0.3.3 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
-	gorm.io/gorm v1.20.6
 )
 
 replace github.com/99designs/gqlgen => github.com/marwan-at-work/gqlgen v0.0.0-20200107060600-48dc29c19314
