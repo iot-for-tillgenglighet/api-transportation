@@ -1,0 +1,12 @@
+version: "3"
+services:
+  transportation:
+    image: "iot-for-tillgenglighet/api-transportation:latest"
+    build:
+      context: ..
+      dockerfile: ./deployments/Dockerfile
+    restart: always
+
+    ports:
+    - "8880:8880"
+

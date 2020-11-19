@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/go-chi/chi v4.1.2+incompatible
-	github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201113145248-1684fc0ab74c
+	github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201119184927-04b40823a026
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/rs/cors v1.7.0
 	github.com/sirupsen/logrus v1.7.0

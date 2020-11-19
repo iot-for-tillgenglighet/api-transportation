@@ -30,9 +30,7 @@ func (cs *contextSource) CreateEntity(typeName, entityID string, req ngsi.Reques
 		if err == nil {
 			cs.roads = append(cs.roads, *road)
 		}
-	}
-
-	if typeName == "RoadSegment" {
+	} else if typeName == "RoadSegment" {
 		roadSegment := &fiware.RoadSegment{}
 
 		err := req.DecodeBodyInto(roadSegment)
