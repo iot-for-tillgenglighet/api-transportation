@@ -70,7 +70,7 @@ func CreateRouterAndStartServing(db database.Datastore) {
 
 	port := os.Getenv("TRANSPORTATION_API_PORT")
 	if port == "" {
-		port = "8880"
+		port = "8484"
 	}
 
 	log.Printf("Starting api-transportation on port %s.\n", port)
