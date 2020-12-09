@@ -7,6 +7,8 @@ import (
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
 	"github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/datamodels/fiware"
 	ngsi "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/ngsi-ld"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type contextSource struct {
@@ -65,7 +67,21 @@ func (cs *contextSource) getRoadSegments(query ngsi.Query, callback ngsi.QueryEn
 		}
 	}
 
-	for _, s := range segments {
+	numberOfSegments := uint64(len(segments))
+
+	firstIndex := query.PaginationOffset()
+	stopIndex := firstIndex + query.PaginationLimit()
+
+	if stopIndex > numberOfSegments {
+		stopIndex = numberOfSegments
+	}
+
+	if firstIndex > 0 || stopIndex != numberOfSegments {
+		log.Infof("Returning segment %d to %d of %d", firstIndex, stopIndex-1, numberOfSegments)
+	}
+
+	for i := firstIndex; i < stopIndex; i++ {
+		s := segments[i]
 		rs := fiware.NewRoadSegment(s.ID(), s.ID(), s.RoadID(), s.Coordinates())
 		err = callback(rs)
 		if err != nil {

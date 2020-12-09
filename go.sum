@@ -6,12 +6,8 @@ github.com/go-chi/chi v4.1.2+incompatible h1:fGFk2Gmi/YKXk0OmGfBh0WgmN3XB8lVnEyN
 github.com/go-chi/chi v4.1.2+incompatible/go.mod h1:eB3wogJHnLi3x/kFX2A+IbTBlXxmMeXJVKy9tTv1XzQ=
 github.com/google/uuid v1.1.2 h1:EVhdT+1Kseyi1/pUmXKaFxYsDNy9RQYkMWRH68J/W7Y=
 github.com/google/uuid v1.1.2/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201208230310-17b1e3c92d1d h1:H3sWZtJqDLagya+ppBAkxmRBYYZCj2kP6GsTayqq288=
-github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201208230310-17b1e3c92d1d/go.mod h1:cIbwqe96AYjHMj6nIth2RlcoOyrju81almGfQyVYAlM=
-github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201208231137-a300c9fdc0e5 h1:QykJJoHW0u0/aM20N8yUneE59HuCgA0LYUmxicGzS4w=
-github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201208231137-a300c9fdc0e5/go.mod h1:cIbwqe96AYjHMj6nIth2RlcoOyrju81almGfQyVYAlM=
-github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201209003854-4d920f487e64 h1:SG+zWlzJMXm3xU4BqiWQX8Tax5RJS5np3kAd7et7BzM=
-github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201209003854-4d920f487e64/go.mod h1:cIbwqe96AYjHMj6nIth2RlcoOyrju81almGfQyVYAlM=
+github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201209220811-632660d1edab h1:lgj7bATkFGfwTGhCxCdFW8rsbIHPvSv2I4nVRseMZEA=
+github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201209220811-632660d1edab/go.mod h1:cIbwqe96AYjHMj6nIth2RlcoOyrju81almGfQyVYAlM=
 github.com/kr/pretty v0.2.1 h1:Fmg33tUaq4/8ym9TJN1x7sLJnHVwhP33CNkpYV/7rwI=
 github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
