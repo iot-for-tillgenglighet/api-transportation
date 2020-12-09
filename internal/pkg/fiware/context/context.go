@@ -4,18 +4,20 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
 	"github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/datamodels/fiware"
 	ngsi "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/ngsi-ld"
 )
 
 type contextSource struct {
+	db           database.Datastore
 	roads        []fiware.Road
 	roadSegments []fiware.RoadSegment
 }
 
 //CreateSource instantiates and returns a Fiware ContextSource that wraps the provided db interface
-func CreateSource() ngsi.ContextSource {
-	return &contextSource{}
+func CreateSource(db database.Datastore) ngsi.ContextSource {
+	return &contextSource{db: db}
 }
 
 func (cs *contextSource) CreateEntity(typeName, entityID string, req ngsi.Request) error {
@@ -43,6 +45,37 @@ func (cs *contextSource) CreateEntity(typeName, entityID string, req ngsi.Reques
 	return err
 }
 
+func (cs *contextSource) getRoadSegments(query ngsi.Query, callback ngsi.QueryEntitiesCallback) error {
+	var err error
+
+	segments := []database.RoadSegment{}
+
+	if query.IsGeoQuery() {
+		geoQ := query.Geo()
+		if geoQ.GeoRel == ngsi.GeoSpatialRelationNearPoint {
+			lon, lat, _ := geoQ.Point()
+			distance, _ := geoQ.Distance()
+			segments, err = cs.db.GetSegmentsNearPoint(lat, lon, uint64(distance))
+		} else if geoQ.GeoRel == ngsi.GeoSpatialRelationWithinRect {
+			lon0, lat0, lon1, lat1, err := geoQ.Rectangle()
+			if err != nil {
+				return err
+			}
+			segments, err = cs.db.GetSegmentsWithinRect(lat0, lon0, lat1, lon1)
+		}
+	}
+
+	for _, s := range segments {
+		rs := fiware.NewRoadSegment(s.ID(), s.ID(), s.RoadID(), s.Coordinates())
+		err = callback(rs)
+		if err != nil {
+			break
+		}
+	}
+
+	return err
+}
+
 func (cs *contextSource) GetEntities(query ngsi.Query, callback ngsi.QueryEntitiesCallback) error {
 
 	var err error
@@ -60,12 +93,7 @@ func (cs *contextSource) GetEntities(query ngsi.Query, callback ngsi.QueryEntiti
 				}
 			}
 		} else if typeName == "RoadSegment" {
-			for _, roadSegment := range cs.roadSegments {
-				err = callback(roadSegment)
-				if err != nil {
-					break
-				}
-			}
+			return cs.getRoadSegments(query, callback)
 		}
 	}
 

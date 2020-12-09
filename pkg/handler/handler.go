@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
 	fiwarecontext "github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/fiware/context"
 	ngsi "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/ngsi-ld"
 
@@ -59,10 +60,10 @@ func createRequestRouter(contextRegistry ngsi.ContextRegistry) *RequestRouter {
 }
 
 //CreateRouterAndStartServing creates a request router, registers all handlers and starts serving requests.
-func CreateRouterAndStartServing() {
+func CreateRouterAndStartServing(db database.Datastore) {
 
 	contextRegistry := ngsi.NewContextRegistry()
-	ctxSource := fiwarecontext.CreateSource()
+	ctxSource := fiwarecontext.CreateSource(db)
 	contextRegistry.Register(ctxSource)
 
 	router := createRequestRouter(contextRegistry)
