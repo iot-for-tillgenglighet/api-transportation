@@ -22,5 +22,6 @@ FROM alpine
 RUN apk add ca-certificates
 
 COPY --from=builder /app/cmd/api-transportation/api-transportation /app/
+COPY assets/segments.db /app/segments.db
 
-ENTRYPOINT ["/app/api-transportation"]
+ENTRYPOINT ["/app/api-transportation", "-segsfile", "/app/segments.db"]
