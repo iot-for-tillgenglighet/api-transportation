@@ -5,12 +5,15 @@ type RoadSegmentSurfaceUpdated struct {
 	ID          string  `json:"id"`
 	SurfaceType string  `json:"surfaceType"`
 	Probability float64 `json:"probability"`
+	Timestamp   string  `json:"timestamp"`
 }
 
+//TopicName returns the name of the topic that this event should be posted to
 func (rssu *RoadSegmentSurfaceUpdated) TopicName() string {
-	return "events-roadsegmentsurfaceupdated"
+	return "events.transportation.roadsegmentsurfaceupdated"
 }
 
-func (msg *RoadSegmentSurfaceUpdated) ContentType() string {
+//ContentType returns the content type that this event will be sent as
+func (rssu *RoadSegmentSurfaceUpdated) ContentType() string {
 	return "application/json"
 }

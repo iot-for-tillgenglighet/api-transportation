@@ -1,9 +1,11 @@
 package database_test
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	db "github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
 	log "github.com/sirupsen/logrus"
@@ -76,5 +78,20 @@ func TestBoundingBoxCreation(t *testing.T) {
 	box = db.NewBoundingBoxFromRectangles(r4, r1)
 	if db.NewPoint(2.5, 2.5).IsBoundedBy(&box) == false {
 		t.Error("Failed!")
+	}
+}
+
+func TestUpdateRoadSegmentSurface(t *testing.T) {
+	segmentID := "21277:153930"
+	seedData := fmt.Sprintf("%s;%s;62.389109;17.310863;62.389084;17.310852\n", segmentID, segmentID)
+	db, _ := db.NewDatabaseConnection(strings.NewReader(seedData))
+
+	db.UpdateRoadSegmentSurface(segmentID, "snow", 75.0, time.Now())
+
+	seg, _ := db.GetRoadSegmentByID(segmentID)
+	surfaceType, probability := seg.SurfaceType()
+
+	if surfaceType != "snow" || probability != 75.0 || seg.DateModified() == nil {
+		t.Errorf("Failed to update road segment surface type. %s (%f) did not match expectations.", surfaceType, probability)
 	}
 }

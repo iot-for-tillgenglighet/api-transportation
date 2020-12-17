@@ -5,7 +5,7 @@ go 1.15
 require (
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/iot-for-tillgenglighet/messaging-golang v0.0.0-20201009211140-579335ad3c49
-	github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201215225100-d5df5db1bb55
+	github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201217212830-405ab81e2b4b
 	github.com/kr/text v0.2.0 // indirect
 	github.com/rs/cors v1.7.0
 	github.com/sirupsen/logrus v1.7.0

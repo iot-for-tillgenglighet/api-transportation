@@ -3,6 +3,7 @@ package context
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging/events"
@@ -90,7 +91,7 @@ func (cs *contextSource) getRoadSegments(query ngsi.Query, callback ngsi.QueryEn
 
 	for i := firstIndex; i < stopIndex; i++ {
 		s := segments[i]
-		rs := fiware.NewRoadSegment(s.ID(), s.ID(), s.RoadID(), s.Coordinates())
+		rs := fiware.NewRoadSegment(s.ID(), s.ID(), s.RoadID(), s.Coordinates(), s.DateModified())
 
 		surfaceType, probability := s.SurfaceType()
 		if probability >= 0 && probability <= 100 {
@@ -167,8 +168,9 @@ func (cs contextSource) UpdateEntityAttributes(entityID string, req ngsi.Request
 	//Post an event stating that a roadsegment's surface has been updated
 	event := &events.RoadSegmentSurfaceUpdated{
 		ID:          segment.ID(),
-		SurfaceType: updateSource.SurfaceType.Value,
+		SurfaceType: strings.ToLower(updateSource.SurfaceType.Value),
 		Probability: updateSource.SurfaceType.Probability,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
 	}
 	cs.msg.PublishOnTopic(event)
 

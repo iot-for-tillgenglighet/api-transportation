@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -107,6 +108,8 @@ type Road interface {
 
 	BoundingBox() Rectangle
 	IsWithinDistanceFromPoint(maxDistance uint64, pt Point) bool
+
+	setLastModified(timestamp *time.Time)
 }
 
 type roadImpl struct {
@@ -114,7 +117,8 @@ type roadImpl struct {
 
 	segments []RoadSegment
 
-	bbox Rectangle
+	bbox     Rectangle
+	modified *time.Time
 }
 
 func (r *roadImpl) AddSegment(segment RoadSegment) {
@@ -172,6 +176,10 @@ func (r *roadImpl) IsWithinDistanceFromPoint(maxDistance uint64, pt Point) bool 
 	return (maxDistance > r.bbox.DistanceFromPoint(pt))
 }
 
+func (r *roadImpl) setLastModified(timestamp *time.Time) {
+	r.modified = timestamp
+}
+
 func newRoad(id string, segment RoadSegment) Road {
 	road := &roadImpl{id: id}
 	road.segments = append(road.segments, segment)
@@ -190,6 +198,10 @@ type RoadSegment interface {
 	SurfaceType() (string, float64)
 
 	setSurfaceType(surfaceType string, probability float64)
+
+	DateModified() *time.Time
+	IsModified() bool
+	setLastModified(timestamp *time.Time)
 }
 
 type roadSegmentImpl struct {
@@ -201,6 +213,8 @@ type roadSegmentImpl struct {
 
 	surfaceType            string
 	surfaceTypeProbability float64
+
+	modified *time.Time
 }
 
 func (seg *roadSegmentImpl) ID() string {
@@ -243,6 +257,20 @@ func (seg *roadSegmentImpl) SurfaceType() (string, float64) {
 func (seg *roadSegmentImpl) setSurfaceType(surfaceType string, probability float64) {
 	seg.surfaceType = surfaceType
 	seg.surfaceTypeProbability = probability
+}
+
+func (seg *roadSegmentImpl) DateModified() *time.Time {
+	return seg.modified
+}
+
+func (seg *roadSegmentImpl) IsModified() bool {
+	return seg.modified != nil
+}
+
+func (seg *roadSegmentImpl) setLastModified(timestamp *time.Time) {
+	if seg.modified == nil || seg.modified.Before(*timestamp) {
+		seg.modified = timestamp
+	}
 }
 
 func newRoadSegment(id string, roadID string, coordinates []Point) RoadSegment {
@@ -308,7 +336,7 @@ type Datastore interface {
 	GetSegmentsNearPoint(lat, lon float64, maxDistance uint64) ([]RoadSegment, error)
 	GetSegmentsWithinRect(lat0, lon0, lat1, lon1 float64) ([]RoadSegment, error)
 
-	UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64) error
+	UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64, timestamp time.Time) error
 }
 
 //InitFromReader takes a reader interface and initialises the datastore
@@ -450,12 +478,14 @@ func (db *myDB) GetSegmentsWithinRect(lat0, lon0, lat1, lon1 float64) ([]RoadSeg
 	return segments, nil
 }
 
-func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64) error {
+func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64, timestamp time.Time) error {
 
 	for idx := range db.roads {
 		segment, err := db.roads[idx].GetSegment(segmentID)
 		if err == nil {
 			segment.setSurfaceType(surfaceType, probability)
+			segment.setLastModified(&timestamp)
+			db.roads[idx].setLastModified(&timestamp)
 			return nil
 		}
 	}

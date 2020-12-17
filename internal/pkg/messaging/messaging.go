@@ -2,6 +2,7 @@ package messaging
 
 import (
 	"encoding/json"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -24,7 +25,8 @@ func CreateRoadSegmentSurfaceUpdatedReceiver(db database.Datastore) messaging.To
 			return
 		}
 
-		err = db.UpdateRoadSegmentSurface(evt.ID, evt.SurfaceType, evt.Probability)
+		ts, err := time.Parse(time.RFC3339, evt.Timestamp)
+		err = db.UpdateRoadSegmentSurface(evt.ID, evt.SurfaceType, evt.Probability, ts)
 
 		if err != nil {
 			log.Error(err.Error())
