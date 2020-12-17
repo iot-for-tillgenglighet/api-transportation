@@ -7,7 +7,10 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
+	intmsg "github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging"
+	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging/events"
 	"github.com/iot-for-tillgenglighet/api-transportation/pkg/handler"
+	"github.com/iot-for-tillgenglighet/messaging-golang/pkg/messaging"
 )
 
 func openSegmentsFile(path string) *os.File {
@@ -31,9 +34,16 @@ func main() {
 
 	log.Infof("Starting up %s ...", serviceName)
 
+	config := messaging.LoadConfiguration(serviceName)
+	messenger, _ := messaging.Initialize(config)
+
+	defer messenger.Close()
+
 	datafile := openSegmentsFile(segmentsFileName)
 	db, _ := database.NewDatabaseConnection(datafile)
 	defer datafile.Close()
 
-	handler.CreateRouterAndStartServing(db)
+	messenger.RegisterTopicMessageHandler((&events.RoadSegmentSurfaceUpdated{}).TopicName(), intmsg.CreateRoadSegmentSurfaceUpdatedReceiver(db))
+
+	handler.CreateRouterAndStartServing(messenger, db)
 }

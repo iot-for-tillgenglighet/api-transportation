@@ -5,21 +5,29 @@ import (
 	"strings"
 
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
+	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging/events"
+	"github.com/iot-for-tillgenglighet/messaging-golang/pkg/messaging"
 	"github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/datamodels/fiware"
 	ngsi "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/ngsi-ld"
 
 	log "github.com/sirupsen/logrus"
 )
 
+//MessagingContext is an interface that allows mocking of messaging.Context parameters
+type MessagingContext interface {
+	PublishOnTopic(message messaging.TopicMessage) error
+}
+
 type contextSource struct {
 	db           database.Datastore
+	msg          MessagingContext
 	roads        []fiware.Road
 	roadSegments []fiware.RoadSegment
 }
 
 //CreateSource instantiates and returns a Fiware ContextSource that wraps the provided db interface
-func CreateSource(db database.Datastore) ngsi.ContextSource {
-	return &contextSource{db: db}
+func CreateSource(db database.Datastore, msg MessagingContext) ngsi.ContextSource {
+	return &contextSource{db: db, msg: msg}
 }
 
 func (cs *contextSource) CreateEntity(typeName, entityID string, req ngsi.Request) error {
@@ -83,6 +91,12 @@ func (cs *contextSource) getRoadSegments(query ngsi.Query, callback ngsi.QueryEn
 	for i := firstIndex; i < stopIndex; i++ {
 		s := segments[i]
 		rs := fiware.NewRoadSegment(s.ID(), s.ID(), s.RoadID(), s.Coordinates())
+
+		surfaceType, probability := s.SurfaceType()
+		if probability >= 0 && probability <= 100 {
+			rs = rs.WithSurfaceType(surfaceType, probability)
+		}
+
 		err = callback(rs)
 		if err != nil {
 			break
@@ -130,5 +144,33 @@ func (cs contextSource) ProvidesType(typeName string) bool {
 }
 
 func (cs contextSource) UpdateEntityAttributes(entityID string, req ngsi.Request) error {
-	return errors.New("UpdateEntityAttributes is not supported by this service")
+	if strings.Contains(entityID, ":RoadSegment:") == false {
+		return errors.New("UpdateEntityAttributes is only supported for RoadSegments")
+	}
+
+	updateSource := &fiware.RoadSegment{}
+	err := req.DecodeBodyInto(updateSource)
+	if err != nil {
+		log.Errorln("Failed to decode PATCH body in UpdateEntityAttributes: " + err.Error())
+		return err
+	}
+
+	if updateSource.SurfaceType == nil {
+		return errors.New("UpdateEntityAttributes only supports the surfaceType property which MUST be non null")
+	}
+
+	segment, err := cs.db.GetRoadSegmentByID(entityID[24:])
+	if err != nil {
+		return err
+	}
+
+	//Post an event stating that a roadsegment's surface has been updated
+	event := &events.RoadSegmentSurfaceUpdated{
+		ID:          segment.ID(),
+		SurfaceType: updateSource.SurfaceType.Value,
+		Probability: updateSource.SurfaceType.Probability,
+	}
+	cs.msg.PublishOnTopic(event)
+
+	return nil
 }

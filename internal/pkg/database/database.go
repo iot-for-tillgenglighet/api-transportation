@@ -101,6 +101,7 @@ type Road interface {
 	ID() string
 
 	AddSegment(RoadSegment)
+	GetSegment(id string) (RoadSegment, error)
 	GetSegmentsWithinDistanceFromPoint(maxDistance uint64, pt Point) ([]RoadSegment, uint64)
 	GetSegmentsWithinRect(Rectangle) ([]RoadSegment, uint64)
 
@@ -118,6 +119,17 @@ type roadImpl struct {
 
 func (r *roadImpl) AddSegment(segment RoadSegment) {
 	r.segments = append(r.segments, segment)
+}
+
+func (r *roadImpl) GetSegment(id string) (RoadSegment, error) {
+	for idx := range r.segments {
+		if r.segments[idx].ID() == id {
+			//TODO: This should return a copy of the segment, and not an interface pointing to the actual segment
+			return r.segments[idx], nil
+		}
+	}
+
+	return nil, fmt.Errorf("not found")
 }
 
 func (r *roadImpl) BoundingBox() Rectangle {
@@ -175,6 +187,9 @@ type RoadSegment interface {
 	BoundingBox() Rectangle
 	Coordinates() [][2]float64
 	IsWithinDistanceFromPoint(uint64, Point) bool
+	SurfaceType() (string, float64)
+
+	setSurfaceType(surfaceType string, probability float64)
 }
 
 type roadSegmentImpl struct {
@@ -183,6 +198,9 @@ type roadSegmentImpl struct {
 
 	lines []RoadSegmentLine
 	bbox  Rectangle
+
+	surfaceType            string
+	surfaceTypeProbability float64
 }
 
 func (seg *roadSegmentImpl) ID() string {
@@ -216,6 +234,15 @@ func (seg *roadSegmentImpl) IsWithinDistanceFromPoint(maxDistance uint64, pt Poi
 	}
 
 	return false
+}
+
+func (seg *roadSegmentImpl) SurfaceType() (string, float64) {
+	return seg.surfaceType, seg.surfaceTypeProbability
+}
+
+func (seg *roadSegmentImpl) setSurfaceType(surfaceType string, probability float64) {
+	seg.surfaceType = surfaceType
+	seg.surfaceTypeProbability = probability
 }
 
 func newRoadSegment(id string, roadID string, coordinates []Point) RoadSegment {
@@ -276,8 +303,12 @@ type Datastore interface {
 	GetRoadByID(id string) (Road, error)
 	GetRoadCount() int
 
+	GetRoadSegmentByID(id string) (RoadSegment, error)
+
 	GetSegmentsNearPoint(lat, lon float64, maxDistance uint64) ([]RoadSegment, error)
 	GetSegmentsWithinRect(lat0, lon0, lat1, lon1 float64) ([]RoadSegment, error)
+
+	UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64) error
 }
 
 //InitFromReader takes a reader interface and initialises the datastore
@@ -371,6 +402,18 @@ func (db *myDB) GetRoadCount() int {
 	return len(db.roads)
 }
 
+func (db *myDB) GetRoadSegmentByID(id string) (RoadSegment, error) {
+
+	for idx := range db.roads {
+		segment, err := db.roads[idx].GetSegment(id)
+		if err == nil {
+			return segment, nil
+		}
+	}
+
+	return nil, fmt.Errorf("Unable to find RoadSegment with id %s", id)
+}
+
 func (db *myDB) GetSegmentsNearPoint(lat, lon float64, maxDistance uint64) ([]RoadSegment, error) {
 	segments := []RoadSegment{}
 
@@ -405,6 +448,19 @@ func (db *myDB) GetSegmentsWithinRect(lat0, lon0, lat1, lon1 float64) ([]RoadSeg
 	log.Infof("Found %d segments within rect (%f,%f)(%f,%f).", len(segments), rect.northWest.lat, rect.northWest.lon, rect.southEast.lat, rect.southEast.lon)
 
 	return segments, nil
+}
+
+func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64) error {
+
+	for idx := range db.roads {
+		segment, err := db.roads[idx].GetSegment(segmentID)
+		if err == nil {
+			segment.setSurfaceType(surfaceType, probability)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("Unable to update non existing RoadSegment %s", segmentID)
 }
 
 type myDB struct {

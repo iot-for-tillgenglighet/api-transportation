@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
 	fiwarecontext "github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/fiware/context"
+	"github.com/iot-for-tillgenglighet/messaging-golang/pkg/messaging"
 	ngsi "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/ngsi-ld"
 
 	"github.com/rs/cors"
@@ -24,6 +25,11 @@ type RequestRouter struct {
 func (router *RequestRouter) addNGSIHandlers(contextRegistry ngsi.ContextRegistry) {
 	router.Get("/ngsi-ld/v1/entities", ngsi.NewQueryEntitiesHandler(contextRegistry))
 	router.Post("/ngsi-ld/v1/entities", ngsi.NewCreateEntityHandler(contextRegistry))
+	router.Patch("/ngsi-ld/v1/entities/{entity}/attrs/", ngsi.NewUpdateEntityAttributesHandler(contextRegistry))
+}
+
+func (router *RequestRouter) Patch(pattern string, handlerFn http.HandlerFunc) {
+	router.impl.Patch(pattern, handlerFn)
 }
 
 func (router *RequestRouter) Post(pattern string, handlerFn http.HandlerFunc) {
@@ -59,11 +65,16 @@ func createRequestRouter(contextRegistry ngsi.ContextRegistry) *RequestRouter {
 	return router
 }
 
+//MessagingContext is an interface that allows mocking of messaging.Context parameters
+type MessagingContext interface {
+	PublishOnTopic(message messaging.TopicMessage) error
+}
+
 //CreateRouterAndStartServing creates a request router, registers all handlers and starts serving requests.
-func CreateRouterAndStartServing(db database.Datastore) {
+func CreateRouterAndStartServing(messenger MessagingContext, db database.Datastore) {
 
 	contextRegistry := ngsi.NewContextRegistry()
-	ctxSource := fiwarecontext.CreateSource(db)
+	ctxSource := fiwarecontext.CreateSource(db, messenger)
 	contextRegistry.Register(ctxSource)
 
 	router := createRequestRouter(contextRegistry)
