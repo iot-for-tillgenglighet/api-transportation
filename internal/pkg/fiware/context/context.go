@@ -94,9 +94,7 @@ func (cs *contextSource) getRoadSegments(query ngsi.Query, callback ngsi.QueryEn
 		rs := fiware.NewRoadSegment(s.ID(), s.ID(), s.RoadID(), s.Coordinates(), s.DateModified())
 
 		surfaceType, probability := s.SurfaceType()
-		if probability >= 0 && probability <= 100 {
-			rs = rs.WithSurfaceType(surfaceType, probability)
-		}
+		rs = rs.WithSurfaceType(surfaceType, probability)
 
 		err = callback(rs)
 		if err != nil {
