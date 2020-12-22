@@ -20,10 +20,8 @@ type MessagingContext interface {
 }
 
 type contextSource struct {
-	db           database.Datastore
-	msg          MessagingContext
-	roads        []fiware.Road
-	roadSegments []fiware.RoadSegment
+	db  database.Datastore
+	msg MessagingContext
 }
 
 //CreateSource instantiates and returns a Fiware ContextSource that wraps the provided db interface
@@ -32,24 +30,49 @@ func CreateSource(db database.Datastore, msg MessagingContext) ngsi.ContextSourc
 }
 
 func (cs *contextSource) CreateEntity(typeName, entityID string, req ngsi.Request) error {
+	return errors.New("CreateEntity not supported for Roads or RoadSegments")
+}
 
+func (cs *contextSource) getRoads(query ngsi.Query, callback ngsi.QueryEntitiesCallback) error {
 	var err error
 
-	if typeName == "Road" {
-		road := &fiware.Road{}
+	roads := []database.Road{}
 
-		err := req.DecodeBodyInto(road)
-
-		if err == nil {
-			cs.roads = append(cs.roads, *road)
+	if query.IsGeoQuery() {
+		geoQ := query.Geo()
+		if geoQ.GeoRel == ngsi.GeoSpatialRelationNearPoint {
+			lon, lat, _ := geoQ.Point()
+			distance, _ := geoQ.Distance()
+			roads, err = cs.db.GetRoadsNearPoint(lat, lon, uint64(distance))
+		} else if geoQ.GeoRel == ngsi.GeoSpatialRelationWithinRect {
+			lon0, lat0, lon1, lat1, err := geoQ.Rectangle()
+			if err != nil {
+				return err
+			}
+			roads, err = cs.db.GetRoadsWithinRect(lat0, lon0, lat1, lon1)
 		}
-	} else if typeName == "RoadSegment" {
-		roadSegment := &fiware.RoadSegment{}
+	}
 
-		err := req.DecodeBodyInto(roadSegment)
+	numberOfRoads := uint64(len(roads))
 
-		if err == nil {
-			cs.roadSegments = append(cs.roadSegments, *roadSegment)
+	firstIndex := query.PaginationOffset()
+	stopIndex := firstIndex + query.PaginationLimit()
+
+	if stopIndex > numberOfRoads {
+		stopIndex = numberOfRoads
+	}
+
+	if firstIndex > 0 || stopIndex != numberOfRoads {
+		log.Infof("Returning road %d to %d of %d", firstIndex, stopIndex-1, numberOfRoads)
+	}
+
+	for i := firstIndex; i < stopIndex; i++ {
+		r := roads[i]
+		fwRoad := fiware.NewRoad(r.ID(), r.ID(), "class", r.GetSegmentIdentities())
+
+		err = callback(fwRoad)
+		if err != nil {
+			break
 		}
 	}
 
@@ -115,12 +138,7 @@ func (cs *contextSource) GetEntities(query ngsi.Query, callback ngsi.QueryEntiti
 
 	for _, typeName := range query.EntityTypes() {
 		if typeName == "Road" {
-			for _, road := range cs.roads {
-				err = callback(road)
-				if err != nil {
-					break
-				}
-			}
+			return cs.getRoads(query, callback)
 		} else if typeName == "RoadSegment" {
 			return cs.getRoadSegments(query, callback)
 		}

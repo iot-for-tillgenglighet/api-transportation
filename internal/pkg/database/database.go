@@ -103,6 +103,7 @@ type Road interface {
 
 	AddSegment(RoadSegment)
 	GetSegment(id string) (RoadSegment, error)
+	GetSegmentIdentities() []string
 	GetSegmentsWithinDistanceFromPoint(maxDistance uint64, pt Point) ([]RoadSegment, uint64)
 	GetSegmentsWithinRect(Rectangle) ([]RoadSegment, uint64)
 
@@ -134,6 +135,14 @@ func (r *roadImpl) GetSegment(id string) (RoadSegment, error) {
 	}
 
 	return nil, fmt.Errorf("not found")
+}
+
+func (r *roadImpl) GetSegmentIdentities() []string {
+	identities := []string{}
+	for idx := range r.segments {
+		identities = append(identities, r.segments[idx].ID())
+	}
+	return identities
 }
 
 func (r *roadImpl) BoundingBox() Rectangle {
@@ -330,6 +339,8 @@ type Datastore interface {
 
 	GetRoadByID(id string) (Road, error)
 	GetRoadCount() int
+	GetRoadsNearPoint(lat, lon float64, maxDistance uint64) ([]Road, error)
+	GetRoadsWithinRect(lat0, lon0, lat1, lon1 float64) ([]Road, error)
 
 	GetRoadSegmentByID(id string) (RoadSegment, error)
 
@@ -405,6 +416,7 @@ func NewDatabaseConnection(datafile io.Reader) (Datastore, error) {
 
 		log.Infof("Datastore seeded with %d roads.", db.GetRoadCount())
 
+		db.GetRoadsWithinRect(62.430242, 17.230700, 62.353557, 17.444075)
 		db.GetSegmentsWithinRect(62.430242, 17.230700, 62.353557, 17.444075)
 	}
 
@@ -428,6 +440,36 @@ func (db *myDB) GetRoadByID(id string) (Road, error) {
 
 func (db *myDB) GetRoadCount() int {
 	return len(db.roads)
+}
+
+func (db *myDB) GetRoadsNearPoint(lat, lon float64, maxDistance uint64) ([]Road, error) {
+	roads := []Road{}
+
+	pt := NewPoint(lat, lon)
+
+	for _, road := range db.roads {
+		if road.IsWithinDistanceFromPoint(maxDistance, pt) {
+			roads = append(roads, road)
+		}
+	}
+
+	return roads, nil
+}
+
+func (db *myDB) GetRoadsWithinRect(lat0, lon0, lat1, lon1 float64) ([]Road, error) {
+	roads := []Road{}
+
+	rect := NewRectangle(NewPoint(lat0, lon0), NewPoint(lat1, lon1))
+
+	for _, road := range db.roads {
+		if rect.Intersects(road.BoundingBox()) {
+			roads = append(roads, road)
+		}
+	}
+
+	log.Infof("Found %d roads within rect (%f,%f)(%f,%f).", len(roads), rect.northWest.lat, rect.northWest.lon, rect.southEast.lat, rect.southEast.lon)
+
+	return roads, nil
 }
 
 func (db *myDB) GetRoadSegmentByID(id string) (RoadSegment, error) {
