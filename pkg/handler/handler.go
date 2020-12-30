@@ -28,6 +28,12 @@ func (router *RequestRouter) addNGSIHandlers(contextRegistry ngsi.ContextRegistr
 	router.Patch("/ngsi-ld/v1/entities/{entity}/attrs/", ngsi.NewUpdateEntityAttributesHandler(contextRegistry))
 }
 
+func (router *RequestRouter) addProbeHandlers() {
+	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
 func (router *RequestRouter) Patch(pattern string, handlerFn http.HandlerFunc) {
 	router.impl.Patch(pattern, handlerFn)
 }
@@ -60,6 +66,7 @@ func newRequestRouter() *RequestRouter {
 func createRequestRouter(contextRegistry ngsi.ContextRegistry) *RequestRouter {
 	router := newRequestRouter()
 
+	router.addProbeHandlers()
 	router.addNGSIHandlers(contextRegistry)
 
 	return router
