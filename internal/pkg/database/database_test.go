@@ -102,7 +102,14 @@ func TestConnectToSQLite(t *testing.T) {
 	db, _ := db.NewDatabaseConnection(db.NewSQLiteConnector(), strings.NewReader(seedData))
 
 	err := db.UpdateRoadSegmentSurface(segmentID, "snow", 75.0, time.Now())
+
 	if err != nil {
 		t.Errorf("Failed to update road segment surface type in database. %s", err.Error())
+	}
+
+	err = db.UpdateRoadSegmentSurface(segmentID, "tarmac", 85.0, time.Now())
+
+	if err != nil {
+		t.Errorf("Failed to update road segment surface type a second time in database. %s", err.Error())
 	}
 }

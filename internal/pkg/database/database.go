@@ -345,6 +345,7 @@ type Datastore interface {
 	AddRoad(Road) error
 
 	GetRoadByID(id string) (Road, error)
+	GetRoadBySegmentID(segmentID string) (Road, error)
 	GetRoadCount() int
 	GetRoadsNearPoint(lat, lon float64, maxDistance uint64) ([]Road, error)
 	GetRoadsWithinRect(lat0, lon0, lat1, lon1 float64) ([]Road, error)
@@ -366,6 +367,8 @@ func initFromReader(db *myDB, rd io.Reader) error {
 	var err error
 
 	log.Infof("Seeding datastore ...")
+
+	roads := map[string]Road{}
 
 	for {
 		line, err = reader.ReadString('\n')
@@ -394,9 +397,17 @@ func initFromReader(db *myDB, rd io.Reader) error {
 			}
 
 			segment := newRoadSegment(parts[1], parts[0], coordinates)
-			road := newRoad(parts[0], segment)
 
-			db.AddRoad(road)
+			road, ok := roads[parts[0]]
+			if ok == false {
+				road = newRoad(parts[0], segment)
+				roads[parts[0]] = road
+			} else {
+				road.AddSegment(segment)
+			}
+
+			// Add a mapping from segment ID to road ID
+			db.seg2road[segment.ID()] = road.ID()
 		}
 
 		if err != nil {
@@ -407,6 +418,10 @@ func initFromReader(db *myDB, rd io.Reader) error {
 	if err != io.EOF {
 		log.Errorf(" > Failed with error: %v\n", err)
 		return err
+	}
+
+	for _, road := range roads {
+		db.AddRoad(road)
 	}
 
 	return nil
@@ -468,7 +483,11 @@ func NewDatabaseConnection(connect ConnectorFunc, datafile io.Reader) (Datastore
 		return nil, err
 	}
 
-	db := &myDB{impl: impl}
+	db := &myDB{
+		impl:     impl,
+		roads:    map[string]Road{},
+		seg2road: map[string]string{},
+	}
 
 	db.impl.Debug().AutoMigrate(&persistence.Road{}, &persistence.RoadSegment{}, &persistence.SurfaceTypePrediction{})
 
@@ -488,18 +507,26 @@ func NewDatabaseConnection(connect ConnectorFunc, datafile io.Reader) (Datastore
 }
 
 func (db *myDB) AddRoad(road Road) error {
-	db.roads = append(db.roads, road)
+	db.roads[road.ID()] = road
 	return nil
 }
 
 func (db *myDB) GetRoadByID(id string) (Road, error) {
-	for _, road := range db.roads {
-		if road.ID() == id {
-			return road, nil
-		}
+	road, ok := db.roads[id]
+	if ok == false {
+		return nil, fmt.Errorf("No road with id %s in datastore", id)
 	}
 
-	return nil, fmt.Errorf("No road with id %s in datastore", id)
+	return road, nil
+}
+
+func (db *myDB) GetRoadBySegmentID(segmentID string) (Road, error) {
+	roadID, ok := db.seg2road[segmentID]
+	if ok == false {
+		return nil, fmt.Errorf("No road mapping exists from segment %s", segmentID)
+	}
+
+	return db.GetRoadByID(roadID)
 }
 
 func (db *myDB) GetRoadCount() int {
@@ -603,22 +630,32 @@ func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probabil
 	// Find the segment to be updated in the database
 	segment := &persistence.RoadSegment{SegmentID: segmentID}
 	result := db.impl.Where(segment).First(segment)
+
 	if result.RowsAffected == 0 {
 		log.Infof("No segment with id %s found in database. Adding it before surface can be updated.", segmentID)
 
-		road := &persistence.Road{RID: segmentID}
-		result := db.impl.Debug().Create(road)
+		memRoad, err := db.GetRoadBySegmentID(segmentID)
+		if err != nil {
+			return err
+		}
+
+		dbRoad := &persistence.Road{RID: memRoad.ID()}
+
+		for _, memSegID := range memRoad.GetSegmentIdentities() {
+			_, err := db.GetRoadSegmentByID(memSegID)
+			if err != nil {
+				return err
+			}
+
+			dbRoad.RoadSegments = append(dbRoad.RoadSegments, persistence.RoadSegment{SegmentID: memSegID})
+		}
+
+		result = db.impl.Debug().Create(dbRoad)
 		if result.RowsAffected == 0 {
 			return result.Error
 		}
 
-		segment.RoadID = road.ID
-		segment.SegmentID = segmentID
-
-		result = db.impl.Debug().Create(segment)
-		if result.RowsAffected == 0 {
-			return result.Error
-		}
+		result = db.impl.Where(segment).First(segment)
 	}
 
 	stp := &persistence.SurfaceTypePrediction{
@@ -635,5 +672,6 @@ func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probabil
 type myDB struct {
 	impl *gorm.DB
 
-	roads []Road
+	roads    map[string]Road
+	seg2road map[string]string
 }
