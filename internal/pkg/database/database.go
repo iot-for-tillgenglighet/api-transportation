@@ -5,11 +5,18 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/persistence"
 	log "github.com/sirupsen/logrus"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 //TODO: This is a proof of concept that is in need to be refactored to use a
@@ -347,6 +354,7 @@ type Datastore interface {
 	GetSegmentsNearPoint(lat, lon float64, maxDistance uint64) ([]RoadSegment, error)
 	GetSegmentsWithinRect(lat0, lon0, lat1, lon1 float64) ([]RoadSegment, error)
 
+	RoadSegmentSurfaceUpdated(segmentID, surfaceType string, probability float64, timestamp time.Time) error
 	UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64, timestamp time.Time) error
 }
 
@@ -404,9 +412,65 @@ func initFromReader(db *myDB, rd io.Reader) error {
 	return nil
 }
 
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
+//ConnectorFunc is used to inject a database connection method into NewDatabaseConnection
+type ConnectorFunc func() (*gorm.DB, error)
+
+//NewPostgreSQLConnector opens a connection to a postgresql database
+func NewPostgreSQLConnector() ConnectorFunc {
+	dbHost := os.Getenv("TRANSPORTATION_DB_HOST")
+	username := os.Getenv("TRANSPORTATION_DB_USER")
+	dbName := os.Getenv("TRANSPORTATION_DB_NAME")
+	password := os.Getenv("TRANSPORTATION_DB_PASSWORD")
+	sslMode := getEnv("TRANSPORTATION_DB_SSLMODE", "require")
+
+	dbURI := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=%s password=%s", dbHost, username, dbName, sslMode, password)
+
+	return func() (*gorm.DB, error) {
+		for {
+			log.Printf("Connecting to database host %s ...\n", dbHost)
+			db, err := gorm.Open(postgres.Open(dbURI), &gorm.Config{})
+			if err != nil {
+				log.Fatalf("Failed to connect to database %s \n", err)
+				time.Sleep(3 * time.Second)
+			} else {
+				return db, nil
+			}
+		}
+	}
+}
+
+//NewSQLiteConnector opens a connection to a local sqlite database
+func NewSQLiteConnector() ConnectorFunc {
+	return func() (*gorm.DB, error) {
+		db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Silent),
+		})
+
+		if err == nil {
+			db.Exec("PRAGMA foreign_keys = ON")
+		}
+
+		return db, err
+	}
+}
+
 //NewDatabaseConnection creates and returns a new instance of the Datastore interface
-func NewDatabaseConnection(datafile io.Reader) (Datastore, error) {
-	db := &myDB{}
+func NewDatabaseConnection(connect ConnectorFunc, datafile io.Reader) (Datastore, error) {
+	impl, err := connect()
+	if err != nil {
+		return nil, err
+	}
+
+	db := &myDB{impl: impl}
+
+	db.impl.Debug().AutoMigrate(&persistence.Road{}, &persistence.RoadSegment{}, &persistence.SurfaceTypePrediction{})
 
 	if datafile != nil {
 		err := initFromReader(db, datafile)
@@ -520,7 +584,7 @@ func (db *myDB) GetSegmentsWithinRect(lat0, lon0, lat1, lon1 float64) ([]RoadSeg
 	return segments, nil
 }
 
-func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64, timestamp time.Time) error {
+func (db *myDB) RoadSegmentSurfaceUpdated(segmentID, surfaceType string, probability float64, timestamp time.Time) error {
 
 	for idx := range db.roads {
 		segment, err := db.roads[idx].GetSegment(segmentID)
@@ -535,6 +599,41 @@ func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probabil
 	return fmt.Errorf("Unable to update non existing RoadSegment %s", segmentID)
 }
 
+func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64, timestamp time.Time) error {
+	// Find the segment to be updated in the database
+	segment := &persistence.RoadSegment{SegmentID: segmentID}
+	result := db.impl.Where(segment).First(segment)
+	if result.RowsAffected == 0 {
+		log.Infof("No segment with id %s found in database. Adding it before surface can be updated.", segmentID)
+
+		road := &persistence.Road{RID: segmentID}
+		result := db.impl.Debug().Create(road)
+		if result.RowsAffected == 0 {
+			return result.Error
+		}
+
+		segment.RoadID = road.ID
+		segment.SegmentID = segmentID
+
+		result = db.impl.Debug().Create(segment)
+		if result.RowsAffected == 0 {
+			return result.Error
+		}
+	}
+
+	stp := &persistence.SurfaceTypePrediction{
+		RoadSegmentID: segment.ID,
+		SurfaceType:   surfaceType,
+		Probability:   probability,
+		Timestamp:     timestamp,
+	}
+	result = db.impl.Debug().Create(stp)
+
+	return result.Error
+}
+
 type myDB struct {
+	impl *gorm.DB
+
 	roads []Road
 }

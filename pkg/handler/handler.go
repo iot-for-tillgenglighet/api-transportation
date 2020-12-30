@@ -68,6 +68,7 @@ func createRequestRouter(contextRegistry ngsi.ContextRegistry) *RequestRouter {
 //MessagingContext is an interface that allows mocking of messaging.Context parameters
 type MessagingContext interface {
 	PublishOnTopic(message messaging.TopicMessage) error
+	NoteToSelf(message messaging.CommandMessage) error
 }
 
 //CreateRouterAndStartServing creates a request router, registers all handlers and starts serving requests.

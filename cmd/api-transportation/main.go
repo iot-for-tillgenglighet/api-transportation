@@ -8,6 +8,7 @@ import (
 
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
 	intmsg "github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging"
+	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging/commands"
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging/events"
 	"github.com/iot-for-tillgenglighet/api-transportation/pkg/handler"
 	"github.com/iot-for-tillgenglighet/messaging-golang/pkg/messaging"
@@ -40,10 +41,12 @@ func main() {
 	defer messenger.Close()
 
 	datafile := openSegmentsFile(segmentsFileName)
-	db, _ := database.NewDatabaseConnection(datafile)
+	db, _ := database.NewDatabaseConnection(database.NewPostgreSQLConnector(), datafile)
 	defer datafile.Close()
 
 	messenger.RegisterTopicMessageHandler((&events.RoadSegmentSurfaceUpdated{}).TopicName(), intmsg.CreateRoadSegmentSurfaceUpdatedReceiver(db))
+
+	messenger.RegisterCommandHandler(commands.UpdateRoadSegmentSurfaceContentType, intmsg.CreateUpdateRoadSegmentSurfaceCommandHandler(db, messenger))
 
 	handler.CreateRouterAndStartServing(messenger, db)
 }

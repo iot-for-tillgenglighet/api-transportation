@@ -7,11 +7,32 @@ services:
       dockerfile: ./deployments/Dockerfile
     restart: always
     depends_on:
+      - postgresdb
       - rabbitmq
     ports:
     - "8484:8484"
     environment:
+      TRANSPORTATION_DB_HOST: 'postgresdb'
+      TRANSPORTATION_DB_USER: 'testuser'
+      TRANSPORTATION_DB_NAME: 'transportation'
+      TRANSPORTATION_DB_PASSWORD: 'testpass'
+      TRANSPORTATION_DB_SSLMODE: 'disable'
+      TRANSPORTATION_API_PORT: '8484'
       RABBITMQ_HOST: 'rabbitmq'
+
+
+  postgresdb:
+    image: 'iot-for-tillgenglighet/testdb-postgres:latest'
+    build:
+      context: ..
+      dockerfile: ./test/database/testdb-dockerfile
+    restart: always
+    environment:
+      POSTGRES_DB: 'transportation'
+      POSTGRES_USER: 'testuser'
+      POSTGRES_PASSWORD: 'testpass'
+    ports:
+      - '5432'
 
 
   rabbitmq:

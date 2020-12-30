@@ -6,26 +6,21 @@ import (
 	"time"
 
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
-	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging/events"
-	"github.com/iot-for-tillgenglighet/messaging-golang/pkg/messaging"
+	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging"
+	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging/commands"
 	"github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/datamodels/fiware"
 	ngsi "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/ngsi-ld"
 
 	log "github.com/sirupsen/logrus"
 )
 
-//MessagingContext is an interface that allows mocking of messaging.Context parameters
-type MessagingContext interface {
-	PublishOnTopic(message messaging.TopicMessage) error
-}
-
 type contextSource struct {
 	db  database.Datastore
-	msg MessagingContext
+	msg messaging.MessagingContext
 }
 
 //CreateSource instantiates and returns a Fiware ContextSource that wraps the provided db interface
-func CreateSource(db database.Datastore, msg MessagingContext) ngsi.ContextSource {
+func CreateSource(db database.Datastore, msg messaging.MessagingContext) ngsi.ContextSource {
 	return &contextSource{db: db, msg: msg}
 }
 
@@ -181,14 +176,14 @@ func (cs contextSource) UpdateEntityAttributes(entityID string, req ngsi.Request
 		return err
 	}
 
-	//Post an event stating that a roadsegment's surface has been updated
-	event := &events.RoadSegmentSurfaceUpdated{
+	//Enqueue a command to a replica of this service, to persist the road surface update
+	command := &commands.UpdateRoadSegmentSurface{
 		ID:          segment.ID(),
 		SurfaceType: strings.ToLower(updateSource.SurfaceType.Value),
 		Probability: updateSource.SurfaceType.Probability,
 		Timestamp:   time.Now().UTC().Format(time.RFC3339),
 	}
-	cs.msg.PublishOnTopic(event)
+	cs.msg.NoteToSelf(command)
 
 	return nil
 }
