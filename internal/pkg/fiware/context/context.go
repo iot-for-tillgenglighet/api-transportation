@@ -183,7 +183,11 @@ func (cs contextSource) UpdateEntityAttributes(entityID string, req ngsi.Request
 		Probability: updateSource.SurfaceType.Probability,
 		Timestamp:   time.Now().UTC().Format(time.RFC3339),
 	}
-	cs.msg.NoteToSelf(command)
+	err = cs.msg.NoteToSelf(command)
+	if err != nil {
+		log.Error(err.Error())
+		return errors.New("Failed to update entity attributes")
+	}
 
 	return nil
 }
