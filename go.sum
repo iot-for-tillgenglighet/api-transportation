@@ -20,6 +20,12 @@ github.com/iot-for-tillgenglighet/messaging-golang v0.0.0-20201230002037-e79e8e9
 github.com/iot-for-tillgenglighet/messaging-golang v0.0.0-20201230002037-e79e8e927ae9/go.mod h1:KAWin6BX41/tyhpYYff1UgOEz5ShtDLEmQ9naYUiC0c=
 github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201219091927-97abdaedad01 h1:7oKUexZtZJrzWUqqbQb1LBtKawbJD3l8L5XoIdagcCo=
 github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20201219091927-97abdaedad01/go.mod h1:cIbwqe96AYjHMj6nIth2RlcoOyrju81almGfQyVYAlM=
+github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20210314234305-561853fc65f0 h1:tCBSV56er0zASPgM4tCZ4Nu4PAqbBuUj4a67eqXQEjQ=
+github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20210314234305-561853fc65f0/go.mod h1:cIbwqe96AYjHMj6nIth2RlcoOyrju81almGfQyVYAlM=
+github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20210315190759-def4eb924367 h1:7Eaw9txzd7A1i910Km2CZJyMpP6yWaxK6hTxE3CgZR4=
+github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20210315190759-def4eb924367/go.mod h1:cIbwqe96AYjHMj6nIth2RlcoOyrju81almGfQyVYAlM=
+github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20210316135358-62e2fe839946 h1:/YLBzdndsuXlPRYyjKaghaKh3xBHyKBBiViZp75eXTw=
+github.com/iot-for-tillgenglighet/ngsi-ld-golang v0.0.0-20210316135358-62e2fe839946/go.mod h1:cIbwqe96AYjHMj6nIth2RlcoOyrju81almGfQyVYAlM=
 github.com/jackc/chunkreader v1.0.0 h1:4s39bBR8ByfqH+DKm8rQA3E1LHZWB9XWcrz8fqaZbe0=
 github.com/jackc/chunkreader v1.0.0/go.mod h1:RT6O25fNZIuasFJRyZ4R/Y2BbhasbmZXF9QQ7T3kePo=
 github.com/jackc/chunkreader/v2 v2.0.0/go.mod h1:odVSm741yZoC3dpHEUXIqA9tQRhFrgOHwnPIn9lDKlk=

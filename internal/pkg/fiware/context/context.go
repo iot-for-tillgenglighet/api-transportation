@@ -5,11 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/database"
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging"
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/messaging/commands"
+	diwise "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/datamodels/diwise"
 	"github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/datamodels/fiware"
 	ngsi "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/ngsi-ld"
+	ngsitypes "github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/ngsi-ld/types"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -25,7 +28,20 @@ func CreateSource(db database.Datastore, msg messaging.MessagingContext) ngsi.Co
 }
 
 func (cs *contextSource) CreateEntity(typeName, entityID string, req ngsi.Request) error {
-	return errors.New("CreateEntity not supported for Roads or RoadSegments")
+	var err error
+
+	if typeName == "RoadSurfaceObserved" {
+		rso := &diwise.RoadSurfaceObserved{}
+		err = req.DecodeBodyInto(rso)
+		if err != nil {
+			log.Errorf("Could not create new RoadSurfaceObserved: " + err.Error())
+			return err
+		}
+		rso.ID = uuid.New().String()
+		_, err = cs.db.CreateRoadSurfaceObserved(rso)
+	}
+
+	return err
 }
 
 func (cs *contextSource) getRoads(query ngsi.Query, callback ngsi.QueryEntitiesCallback) error {
@@ -44,7 +60,7 @@ func (cs *contextSource) getRoads(query ngsi.Query, callback ngsi.QueryEntitiesC
 			if err != nil {
 				return err
 			}
-			roads, err = cs.db.GetRoadsWithinRect(lat0, lon0, lat1, lon1)
+			roads, _ = cs.db.GetRoadsWithinRect(lat0, lon0, lat1, lon1)
 		}
 	}
 
@@ -90,7 +106,7 @@ func (cs *contextSource) getRoadSegments(query ngsi.Query, callback ngsi.QueryEn
 			if err != nil {
 				return err
 			}
-			segments, err = cs.db.GetSegmentsWithinRect(lat0, lon0, lat1, lon1)
+			segments, _ = cs.db.GetSegmentsWithinRect(lat0, lon0, lat1, lon1)
 		}
 	}
 
@@ -123,6 +139,23 @@ func (cs *contextSource) getRoadSegments(query ngsi.Query, callback ngsi.QueryEn
 	return err
 }
 
+func (cs *contextSource) getRoadSurfaceObserved(query ngsi.Query, callback ngsi.QueryEntitiesCallback) error {
+	roadSurfaces, err := cs.db.GetRoadSurfacesObserved()
+	if err != nil {
+		return err
+	}
+	for _, rso := range roadSurfaces {
+		diwiseRoadSurface := diwise.NewRoadSurfaceObserved(rso.RoadSurfaceObservedID, rso.SurfaceType, rso.Probability, rso.Latitude, rso.Longitude)
+		diwiseRoadSurface.DateObserved = ngsitypes.CreateDateTimeProperty(rso.Timestamp.Format(time.RFC3339))
+		err = callback(diwiseRoadSurface)
+		if err != nil {
+			break
+		}
+	}
+
+	return nil
+}
+
 func (cs *contextSource) GetEntities(query ngsi.Query, callback ngsi.QueryEntitiesCallback) error {
 
 	var err error
@@ -136,6 +169,8 @@ func (cs *contextSource) GetEntities(query ngsi.Query, callback ngsi.QueryEntiti
 			return cs.getRoads(query, callback)
 		} else if typeName == "RoadSegment" {
 			return cs.getRoadSegments(query, callback)
+		} else if typeName == "RoadSurfaceObserved" {
+			return cs.getRoadSurfaceObserved(query, callback)
 		}
 	}
 
@@ -148,15 +183,20 @@ func (cs contextSource) ProvidesAttribute(attributeName string) bool {
 
 func (cs contextSource) ProvidesEntitiesWithMatchingID(entityID string) bool {
 	return strings.HasPrefix(entityID, "urn:ngsi-ld:Road:") ||
-		strings.HasPrefix(entityID, "urn:ngsi-ld:RoadSegment:")
+		strings.HasPrefix(entityID, "urn:ngsi-ld:RoadSegment:") ||
+		strings.HasPrefix(entityID, "urn:ngsi-ld:RoadSurfaceObserved:")
 }
 
 func (cs contextSource) ProvidesType(typeName string) bool {
-	return typeName == "Road" || typeName == "RoadSegment"
+	return typeName == "Road" || typeName == "RoadSegment" || typeName == "RoadSurfaceObserved"
+}
+
+func (cs contextSource) RetrieveEntity(entityID string, request ngsi.Request) (ngsi.Entity, error) {
+	return nil, nil
 }
 
 func (cs contextSource) UpdateEntityAttributes(entityID string, req ngsi.Request) error {
-	if strings.Contains(entityID, ":RoadSegment:") == false {
+	if !strings.Contains(entityID, ":RoadSegment:") {
 		return errors.New("UpdateEntityAttributes is only supported for RoadSegments")
 	}
 
@@ -186,7 +226,7 @@ func (cs contextSource) UpdateEntityAttributes(entityID string, req ngsi.Request
 	err = cs.msg.NoteToSelf(command)
 	if err != nil {
 		log.Error(err.Error())
-		return errors.New("Failed to update entity attributes")
+		return errors.New("failed to update entity attributes")
 	}
 
 	return nil
