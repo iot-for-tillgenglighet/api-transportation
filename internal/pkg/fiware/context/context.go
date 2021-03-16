@@ -182,9 +182,9 @@ func (cs contextSource) ProvidesAttribute(attributeName string) bool {
 }
 
 func (cs contextSource) ProvidesEntitiesWithMatchingID(entityID string) bool {
-	return strings.HasPrefix(entityID, "urn:ngsi-ld:Road:") ||
-		strings.HasPrefix(entityID, "urn:ngsi-ld:RoadSegment:") ||
-		strings.HasPrefix(entityID, "urn:ngsi-ld:RoadSurfaceObserved:")
+	return strings.HasPrefix(entityID, fiware.RoadIDPrefix) ||
+		strings.HasPrefix(entityID, fiware.RoadSegmentIDPrefix) ||
+		strings.HasPrefix(entityID, diwise.RoadSurfaceObservedIDPrefix)
 }
 
 func (cs contextSource) ProvidesType(typeName string) bool {

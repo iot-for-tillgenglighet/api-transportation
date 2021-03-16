@@ -341,9 +341,6 @@ func newRoadSegmentLine(startPt Point, endPt Point) RoadSegmentLine {
 	return line
 }
 
-type RoadSurfaceObserved interface {
-}
-
 //Datastore is an interface that is used to inject the database into different handlers to improve testability
 type Datastore interface {
 	AddRoad(Road) error
@@ -644,15 +641,15 @@ func (db *myDB) CreateRoadSurfaceObserved(src *diwise.RoadSurfaceObserved) (*per
 		return nil, fmt.Errorf("probability %f is not within acceptable range: (0, 1.0]", src.SurfaceType.Probability)
 	}
 
-	lat := src.Position.Value.Coordinates[0]
-	lon := src.Position.Value.Coordinates[1]
-
-	if lat < 62.042301 || lat > 62.648987 {
-		return nil, fmt.Errorf("latitude %f is out of bounds: [62.042301, 62.648987]", lat)
-	}
+	lon := src.Position.Value.Coordinates[0]
+	lat := src.Position.Value.Coordinates[1]
 
 	if lon < 15.516210 || lon > 17.975816 {
 		return nil, fmt.Errorf("longitude %f is out of bounds: [15.516210, 17.975816]", lon)
+	}
+
+	if lat < 62.042301 || lat > 62.648987 {
+		return nil, fmt.Errorf("latitude %f is out of bounds: [62.042301, 62.648987]", lat)
 	}
 
 	rso := &persistence.RoadSurfaceObserved{
