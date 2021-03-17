@@ -29,3 +29,15 @@ type SurfaceTypePrediction struct {
 	Probability   float64
 	Timestamp     time.Time
 }
+
+//RoadSurfaceObserved is a model for a temporary table until a better schema is designed
+type RoadSurfaceObserved struct {
+	gorm.Model
+	RoadSegmentID         uint
+	RoadSurfaceObservedID string
+	SurfaceType           string
+	Probability           float64
+	Latitude              float64
+	Longitude             float64
+	Timestamp             time.Time
+}

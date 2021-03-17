@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/iot-for-tillgenglighet/api-transportation/internal/pkg/persistence"
+	"github.com/iot-for-tillgenglighet/ngsi-ld-golang/pkg/datamodels/diwise"
 	log "github.com/sirupsen/logrus"
 
 	"gorm.io/driver/postgres"
@@ -357,6 +358,9 @@ type Datastore interface {
 
 	RoadSegmentSurfaceUpdated(segmentID, surfaceType string, probability float64, timestamp time.Time) error
 	UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64, timestamp time.Time) error
+
+	CreateRoadSurfaceObserved(src *diwise.RoadSurfaceObserved) (*persistence.RoadSurfaceObserved, error)
+	GetRoadSurfacesObserved() ([]persistence.RoadSurfaceObserved, error)
 }
 
 //InitFromReader takes a reader interface and initialises the datastore
@@ -399,7 +403,7 @@ func initFromReader(db *myDB, rd io.Reader) error {
 			segment := newRoadSegment(parts[1], parts[0], coordinates)
 
 			road, ok := roads[parts[0]]
-			if ok == false {
+			if !ok {
 				road = newRoad(parts[0], segment)
 				roads[parts[0]] = road
 			} else {
@@ -484,12 +488,12 @@ func NewDatabaseConnection(connect ConnectorFunc, datafile io.Reader) (Datastore
 	}
 
 	db := &myDB{
-		impl:     impl,
+		impl:     impl.Debug(),
 		roads:    map[string]Road{},
 		seg2road: map[string]string{},
 	}
 
-	db.impl.Debug().AutoMigrate(&persistence.Road{}, &persistence.RoadSegment{}, &persistence.SurfaceTypePrediction{})
+	db.impl.AutoMigrate(&persistence.Road{}, &persistence.RoadSegment{}, &persistence.SurfaceTypePrediction{}, &persistence.RoadSurfaceObserved{})
 
 	if datafile != nil {
 		err := initFromReader(db, datafile)
@@ -513,8 +517,8 @@ func (db *myDB) AddRoad(road Road) error {
 
 func (db *myDB) GetRoadByID(id string) (Road, error) {
 	road, ok := db.roads[id]
-	if ok == false {
-		return nil, fmt.Errorf("No road with id %s in datastore", id)
+	if !ok {
+		return nil, fmt.Errorf("no road with id %s in datastore", id)
 	}
 
 	return road, nil
@@ -522,8 +526,8 @@ func (db *myDB) GetRoadByID(id string) (Road, error) {
 
 func (db *myDB) GetRoadBySegmentID(segmentID string) (Road, error) {
 	roadID, ok := db.seg2road[segmentID]
-	if ok == false {
-		return nil, fmt.Errorf("No road mapping exists from segment %s", segmentID)
+	if !ok {
+		return nil, fmt.Errorf("no road mapping exists from segment %s", segmentID)
 	}
 
 	return db.GetRoadByID(roadID)
@@ -572,7 +576,7 @@ func (db *myDB) GetRoadSegmentByID(id string) (RoadSegment, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("Unable to find RoadSegment with id %s", id)
+	return nil, fmt.Errorf("unable to find RoadSegment with id %s", id)
 }
 
 func (db *myDB) GetSegmentsNearPoint(lat, lon float64, maxDistance uint64) ([]RoadSegment, error) {
@@ -623,7 +627,56 @@ func (db *myDB) RoadSegmentSurfaceUpdated(segmentID, surfaceType string, probabi
 		}
 	}
 
-	return fmt.Errorf("Unable to update non existing RoadSegment %s", segmentID)
+	return fmt.Errorf("unable to update non existing RoadSegment %s", segmentID)
+}
+
+func (db *myDB) CreateRoadSurfaceObserved(src *diwise.RoadSurfaceObserved) (*persistence.RoadSurfaceObserved, error) {
+
+	err := validateSurfaceType(src.SurfaceType.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	if src.SurfaceType.Probability <= 0 || src.SurfaceType.Probability > 1 {
+		return nil, fmt.Errorf("probability %f is not within acceptable range: (0, 1.0]", src.SurfaceType.Probability)
+	}
+
+	lon := src.Position.Value.Coordinates[0]
+	lat := src.Position.Value.Coordinates[1]
+
+	if lon < 15.516210 || lon > 17.975816 {
+		return nil, fmt.Errorf("longitude %f is out of bounds: [15.516210, 17.975816]", lon)
+	}
+
+	if lat < 62.042301 || lat > 62.648987 {
+		return nil, fmt.Errorf("latitude %f is out of bounds: [62.042301, 62.648987]", lat)
+	}
+
+	rso := &persistence.RoadSurfaceObserved{
+		RoadSurfaceObservedID: src.ID,
+		SurfaceType:           src.SurfaceType.Value,
+		Probability:           src.SurfaceType.Probability,
+		Latitude:              lat,
+		Longitude:             lon,
+		Timestamp:             time.Now().UTC(),
+	}
+
+	result := db.impl.Create(rso)
+	if result.RowsAffected != 1 {
+		return nil, result.Error
+	}
+
+	return rso, nil
+}
+
+func (db *myDB) GetRoadSurfacesObserved() ([]persistence.RoadSurfaceObserved, error) {
+	rso := []persistence.RoadSurfaceObserved{}
+	result := db.impl.Find(&rso)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return rso, nil
 }
 
 func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probability float64, timestamp time.Time) error {
@@ -650,12 +703,12 @@ func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probabil
 			dbRoad.RoadSegments = append(dbRoad.RoadSegments, persistence.RoadSegment{SegmentID: memSegID})
 		}
 
-		result = db.impl.Debug().Create(dbRoad)
+		result = db.impl.Create(dbRoad)
 		if result.RowsAffected == 0 {
 			return result.Error
 		}
 
-		result = db.impl.Where(segment).First(segment)
+		_ = db.impl.Where(segment).First(segment)
 	}
 
 	stp := &persistence.SurfaceTypePrediction{
@@ -664,9 +717,22 @@ func (db *myDB) UpdateRoadSegmentSurface(segmentID, surfaceType string, probabil
 		Probability:   probability,
 		Timestamp:     timestamp,
 	}
-	result = db.impl.Debug().Create(stp)
+	result = db.impl.Create(stp)
 
 	return result.Error
+}
+
+func validateSurfaceType(surfaceType string) error {
+
+	knownTypes := []string{"grass", "gravel", "snow", "tarmac"}
+
+	for _, kt := range knownTypes {
+		if strings.Compare(surfaceType, kt) == 0 {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("surfaceType does not match any known types")
 }
 
 type myDB struct {
