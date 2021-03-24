@@ -2,6 +2,7 @@ package context
 
 import (
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -122,6 +123,27 @@ func (cs *contextSource) getRoadSegments(query ngsi.Query, callback ngsi.QueryEn
 	if firstIndex > 0 || stopIndex != numberOfSegments {
 		log.Infof("Returning segment %d to %d of %d", firstIndex, stopIndex-1, numberOfSegments)
 	}
+
+	sort.Slice(segments, func(i, j int) bool {
+		iTime := segments[i].DateModified()
+		jTime := segments[j].DateModified()
+
+		// Sort by time first with most recently updated at the top
+		// TODO: Remove this when we have working pagination as it breaks pageability of the data
+		if iTime != nil {
+			if jTime != nil {
+				// We want the most reent to come first, so it is less if it is after ...
+				return iTime.After(*jTime)
+			} else {
+				return true
+			}
+		} else if jTime != nil {
+			return false
+		}
+
+		// Neither segment have been updated. Sort by segment id
+		return strings.Compare(segments[i].ID(), segments[j].ID()) < 0
+	})
 
 	for i := firstIndex; i < stopIndex; i++ {
 		s := segments[i]
