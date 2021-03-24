@@ -468,7 +468,7 @@ func NewPostgreSQLConnector() ConnectorFunc {
 //NewSQLiteConnector opens a connection to a local sqlite database
 func NewSQLiteConnector() ConnectorFunc {
 	return func() (*gorm.DB, error) {
-		db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+		db, err := gorm.Open(sqlite.Open("file::memory:"), &gorm.Config{
 			Logger: logger.Default.LogMode(logger.Silent),
 		})
 
@@ -505,6 +505,48 @@ func NewDatabaseConnection(connect ConnectorFunc, datafile io.Reader) (Datastore
 
 		db.GetRoadsWithinRect(62.430242, 17.230700, 62.353557, 17.444075)
 		db.GetSegmentsWithinRect(62.430242, 17.230700, 62.353557, 17.444075)
+
+		// Seed some test data ...
+		//db.UpdateRoadSegmentSurface("21277:153930", "snow", 0.56, time.Now().Add(time.Duration(-5)*time.Second).UTC())
+		//db.UpdateRoadSegmentSurface("21277:153930", "snow", 0.60, time.Now().Add(time.Duration(2)*time.Second).UTC())
+		//db.UpdateRoadSegmentSurface("21277:153930", "snow", 0.70, time.Now().UTC())
+
+		log.Info("Reading and annotating surfaceType predictions ...")
+
+		persistedRoads := []persistence.Road{}
+		result := db.impl.Preload("RoadSegments").Preload("RoadSegments.SurfaceTypePredictions").Find(&persistedRoads)
+		if result.Error != nil {
+			log.Errorf("Restore of surfaceType predictions failed with error %s", result.Error.Error())
+		} else {
+			for _, r := range persistedRoads {
+				for _, rs := range r.RoadSegments {
+					if len(rs.SurfaceTypePredictions) > 0 {
+						mostRecentPrediction := rs.SurfaceTypePredictions[0]
+
+						for _, stp := range rs.SurfaceTypePredictions {
+							if stp.Timestamp.After(mostRecentPrediction.Timestamp) {
+								mostRecentPrediction = stp
+							}
+						}
+
+						log.Infof("Annotating road segment %s: surface was %s with probability %f at %s",
+							rs.SegmentID, mostRecentPrediction.SurfaceType, mostRecentPrediction.Probability,
+							mostRecentPrediction.Timestamp.Format(time.RFC3339),
+						)
+
+						err = db.RoadSegmentSurfaceUpdated(
+							rs.SegmentID,
+							mostRecentPrediction.SurfaceType,
+							mostRecentPrediction.Probability,
+							mostRecentPrediction.Timestamp,
+						)
+						if err != nil {
+							log.Errorf("Failed to annotate road segment %s: %s", rs.SegmentID, err.Error())
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return db, nil
