@@ -2,6 +2,10 @@
 
 This service is responsible for storing road and road segment information and provide it to consumers via an API.
 
+## Deprecation Notice
+
+This repository is deprecated and the code has moved to https://github.com/diwise/api-transportation
+
 # Building, tagging and running with Docker
 
 `docker build -f deployments/Dockerfile -t iot-for-tillgenglighet/api-transportation:latest .`
